@@ -1,41 +1,39 @@
-import { AxesHelper, Camera, GridHelper, Group, Vector4 } from "three";
+import { Camera, Group, Vector4, Scene } from "three";
 
-import { scene } from "./scene";
+import aboutScene from "./scenes/about-scene";
+import landingScene from "./scenes/landing-scene";
 import { perspectiveCamera as camera, debugCamera } from "./camera";
 import renderer from "./renderer";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import gui from "./gui";
 import settings from "./settings";
 import { stats, rendererStats } from "./stats";
+import HelpersManager from "./utils";
 
 export default class WebGLApp {
   controls: OrbitControls;
   debugControls: OrbitControls;
   helpers = new Group();
   viewport = { debug: new Vector4(), main: new Vector4() };
+  scenes: { [key: string]: Scene } = {
+    aboutScene,
+    landingScene,
+  };
+  scene = landingScene; //change the default in gui too if you change this
 
   constructor(parent: HTMLElement) {
     // Setup and create content
     parent.appendChild(renderer.domElement);
+
     //add camera
-    scene.add(camera, debugCamera);
+    this.scenes.aboutScene.add(camera, debugCamera);
+    this.scenes.landingScene.add(camera, debugCamera);
+
+    //addgui
+    this.addGui();
 
     window.addEventListener("resize", this.resize);
-
-    // Add GridHelper and AxesHelper to the scene
-    const gridHelper = new GridHelper(10, 10);
-    const axesHelper = new AxesHelper(5);
-    this.helpers.add(gridHelper, axesHelper);
-    gui.add(this.helpers, "visible").name("helpers");
     this.resize();
-
-    gui.add(settings, "debugCamera");
-    scene.add(this.helpers);
-    // Position the camera and use lookAt to focus on the scene center
-    debugCamera.position.set(10, 10, 10);
-    debugCamera.lookAt(0, 0, 0);
-    camera.position.set(10, 10, 10);
-    camera.lookAt(0, 0, 0);
 
     // OrbitControls for scene navigation
     this.controls = new OrbitControls(camera, renderer.domElement);
@@ -44,6 +42,34 @@ export default class WebGLApp {
     this.update();
     //renderer.canvas
   }
+
+  addGui = () => {
+    const settingsGUI = gui.addFolder("settings");
+    settingsGUI.add(settings, "debugCamera");
+
+    const keys = Object.keys(this.scenes);
+    const defaultScene = settingsGUI
+      .add(this, "Scenes", keys)
+      .onChange((value: string) => {
+        value === "landingScene"
+          ? (this.scene = this.scenes.landingScene)
+          : (this.scene = this.scenes.aboutScene);
+      });
+
+    defaultScene.setValue("landingScene");
+
+    //  show helpers for each scene:
+    for (const sceneName in this.scenes) {
+      const helpers = new HelpersManager();
+      this.scenes[sceneName].add(helpers.helpersGroup);
+      let sceneGUI = gui.addFolder(sceneName);
+      sceneGUI.add(helpers.helpersGroup, "visible").name("helpers");
+    }
+  };
+
+  // dispose = (scene : Scene) = > {
+
+  // }
 
   resize = () => {
     // Resize renderer
@@ -67,7 +93,7 @@ export default class WebGLApp {
   render = (camera: Camera, viewport: Vector4) => {
     renderer.setViewport(viewport); // sets view to renderer scissor dimensions
     renderer.setScissor(viewport); // sets renderer scissor
-    renderer.render(scene, camera);
+    renderer.render(this.scene, camera);
   };
 
   update = () => {
